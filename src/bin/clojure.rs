@@ -1,4 +1,4 @@
-#![feature(fs_try_exists, io_read_to_string)]
+#![feature(io_read_to_string)]
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::{Digest, Md5};
 use std::io::{Read, Write};
@@ -8,7 +8,6 @@ use std::{
     process::Command,
     str,
 };
-
 use which::which;
 
 const VERSION: &str = "1.11.1.1155";
@@ -362,12 +361,12 @@ fn main() -> anyhow::Result<()> {
     if clj_opts.verbose {
         println!("Refreshing classpath");
     }
-    let tools_cp = r#"C:\Windows\system32\WindowsPowerShell\v1.0\Modules\ClojureTools\clojure-tools-1.11.1.1113.jar"#;
+    let tools_cp = install_dir.join(format!("clojure-tools-{}.jar", VERSION));
 
     let child = Command::new(&java)
+        .arg("-classpath")
+        .arg(tools_cp)
         .args([
-            "-classpath",
-            tools_cp,
             "clojure.main",
             "-m",
             "clojure.tools.deps.alpha.script.make-classpath2",
