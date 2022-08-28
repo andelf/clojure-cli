@@ -1,16 +1,17 @@
 #![feature(fs_try_exists, io_read_to_string)]
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::{Digest, Md5};
+use std::io::{Read, Write};
 use std::{
     env, fs,
     path::{Path, PathBuf},
     process::Command,
     str,
 };
+
 use which::which;
 
-const TOOLS_URL: &str = "https://download.clojure.org/install/clojure-tools-1.11.1.1113.zip";
-
-const VERSION: &str = "1.11.1.1113";
+const VERSION: &str = "1.11.1.1155";
 
 #[derive(Debug)]
 pub enum ExecOpts {
@@ -45,6 +46,71 @@ pub struct CljOpts {
     verbose: bool,
     /// remain clojure args
     clojure_args: Vec<String>,
+}
+
+// return install directory
+fn ensure_install() -> anyhow::Result<PathBuf> {
+    // r#"C:\Windows\system32\WindowsPowerShell\v1.0\Modules\ClojureTools\"#
+    let install_dir = get_clj_config()?.join("clojure-tools");
+    let version_file = install_dir.join("VERSION");
+
+    if version_file.exists() {
+        let version = fs::read_to_string(&version_file)?;
+        if version == VERSION {
+            return Ok(install_dir.join("ClojureTools"));
+        }
+    }
+
+    println!("Installing clojure-tools {}...", VERSION);
+    // Let's download it!
+    let tools_url = format!(
+        "https://download.clojure.org/install/clojure-tools-{}.zip",
+        VERSION
+    );
+
+    fs::create_dir_all(&install_dir)?;
+
+    let mut resp = reqwest::blocking::get(&tools_url)?;
+
+    let mut tmpfile = tempfile::tempfile()?;
+
+    let content_length: usize = resp
+        .headers()
+        .get(reqwest::header::CONTENT_LENGTH)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+    let mut buf = [0u8; 4 * 1024];
+    let pb = ProgressBar::new(content_length as _);
+    pb.set_style(ProgressStyle::with_template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .unwrap()
+        .with_key("eta", |state: &ProgressState, w: &mut dyn ::std::fmt::Write| write!(w, "{:.1}s", state.eta().as_secs_f64()).unwrap())
+        .progress_chars("#>-"));
+
+    let mut nwritten = 0;
+
+    while let Ok(n) = resp.read(&mut buf) {
+        if n == 0 {
+            break;
+        }
+        tmpfile.write_all(&buf[..n])?;
+        pb.inc(n as _);
+        nwritten += n;
+    }
+
+    if nwritten == content_length {
+        pb.finish_with_message("Downloaded");
+    } else {
+        pb.abandon_with_message("content length mismatch");
+        anyhow::bail!("download fail");
+    }
+
+    let mut zipfile = zip::ZipArchive::new(tmpfile).unwrap();
+    zipfile.extract(&install_dir)?;
+
+    fs::write(version_file, VERSION)?;
+
+    Ok(install_dir.join("ClojureTools"))
 }
 
 fn get_java_command() -> anyhow::Result<PathBuf> {
@@ -182,12 +248,12 @@ fn main() -> anyhow::Result<()> {
         Some(v) => v,
         None => return Ok(()),
     };
+
+    let install_dir = ensure_install()?;
+
     // println!("D: runing: {:?}", exec_opts);
 
     let java = get_java_command()?;
-
-    let install_dir =
-        PathBuf::from(r#"C:\Windows\system32\WindowsPowerShell\v1.0\Modules\ClojureTools\"#);
 
     let config_dir = get_clj_config()?;
     // If user config directory does not exist, create it
