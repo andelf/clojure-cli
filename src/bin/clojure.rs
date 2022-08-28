@@ -175,6 +175,10 @@ fn parse_args() -> Option<(ExecOpts, CljOpts)> {
             exec_opts = ExecOpts::Main(it.next().unwrap());
             clj_opts.clojure_args.extend(it);
             break;
+        } else if arg.starts_with("-M:") {
+            exec_opts = ExecOpts::Main(arg[2..].to_owned());
+            clj_opts.clojure_args.extend(it);
+            break;
         } else if arg == "-T" {
             exec_opts = ExecOpts::Tool("".to_owned());
             clj_opts.clojure_args.extend(it);
@@ -253,8 +257,6 @@ fn main() -> anyhow::Result<()> {
 
     let install_dir = ensure_install()?;
 
-    // println!("D: runing: {:?}", exec_opts);
-
     let java = get_java_command()?;
 
     let config_dir = get_clj_config()?;
@@ -284,6 +286,7 @@ fn main() -> anyhow::Result<()> {
 
     let user_cache_dir = get_clj_cache()?;
     if clj_opts.verbose {
+        println!("D: exec_opts => {:?}", exec_opts);
         println!("D: java {}", java.display());
         println!("D: config_dir {}", config_dir.display());
         println!("D: user_cache_dir {}", user_cache_dir.display());
@@ -370,6 +373,7 @@ fn main() -> anyhow::Result<()> {
     // If stale, run make-classpath to refresh cached classpath
     if clj_opts.verbose {
         println!("Refreshing classpath");
+        println!("D tools args: {:?}", tools_args);
     }
     let tools_cp = install_dir.join(format!("clojure-tools-{}.jar", VERSION));
 
@@ -405,12 +409,10 @@ fn main() -> anyhow::Result<()> {
         anyhow::bail!("refresh classpath: {}", output.status);
     }
 
-    // println!("stdout: {}", std::str::from_utf8(&output.stdout)?);
-    // println!("stderr: {}", std::str::from_utf8(&output.stderr)?);
-
     let cp = fs::read_to_string(cp_file)?;
     if clj_opts.verbose {
         println!("D class path: {}", cp);
+        println!("D clojure args: {:?}", clj_opts.clojure_args);
     }
 
     let jvm_cache_opts = if jvm_file.exists() {
