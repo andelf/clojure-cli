@@ -45,6 +45,7 @@ pub struct CljOpts {
     verbose: bool,
     /// remain clojure args
     clojure_args: Vec<String>,
+    trace: bool,
 }
 
 // return install directory
@@ -207,6 +208,8 @@ fn parse_args() -> Option<(ExecOpts, CljOpts)> {
             unimplemented!()
         } else if arg == "-Spath" {
             clj_opts.path = true;
+        } else if arg == "-Strace" {
+            clj_opts.trace = true;
         } else if arg == "-Sverbose" {
             clj_opts.verbose = true;
         } else if arg == "-Stree" {
@@ -269,9 +272,9 @@ fn main() -> anyhow::Result<()> {
     }
 
     if install_dir.join("tools.edn").exists()
-        && config_dir.join("tools/tools.edn").exists()
-        && install_dir.join("tools.edn").metadata()?.modified()?
-            > config_dir.join("tools/tools.edn").metadata()?.modified()?
+        && (!config_dir.join("tools/tools.edn").exists()
+            || install_dir.join("tools.edn").metadata()?.modified()?
+                > config_dir.join("tools/tools.edn").metadata()?.modified()?)
     {
         fs::copy(
             install_dir.join("tools.edn"),
@@ -352,12 +355,16 @@ fn main() -> anyhow::Result<()> {
         } else if alias.starts_with(":") {
             tools_args.push(format!("-T{}", alias))
         } else {
+            // tool name mode
             tools_args.push("--tool-name".into());
             tools_args.push(alias.into());
         }
     }
     if clj_opts.tree {
         tools_args.push("--tree".into());
+    }
+    if clj_opts.trace {
+        tools_args.push("--trace".into());
     }
 
     // If stale, run make-classpath to refresh cached classpath
