@@ -267,8 +267,11 @@ fn main() -> anyhow::Result<()> {
     if !config_dir.join("tools").exists() {
         fs::create_dir_all(config_dir.join("tools"))?;
     }
-    if install_dir.join("tools.edn").metadata()?.modified()?
-        > config_dir.join("tools/tools.edn").metadata()?.modified()?
+
+    if install_dir.join("tools.edn").exists()
+        && config_dir.join("tools/tools.edn").exists()
+        && install_dir.join("tools.edn").metadata()?.modified()?
+            > config_dir.join("tools/tools.edn").metadata()?.modified()?
     {
         fs::copy(
             install_dir.join("tools.edn"),
