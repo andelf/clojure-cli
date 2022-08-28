@@ -422,17 +422,24 @@ fn main() -> anyhow::Result<()> {
     };
 
     let maybe_child = match exec_opts {
-        ExecOpts::Exec(_) | ExecOpts::Tool(_) => Command::new(&java)
-            .args(jvm_cache_opts.split_whitespace().collect::<Vec<_>>())
-            .args(clj_opts.jvm_opts.split_whitespace().collect::<Vec<_>>())
-            .arg(format!("-Dclojure.basis={}", basis_file.display()))
-            .arg("-classpath")
-            .arg(format!("{};{}/exec.jar", cp, install_dir.display()))
-            .arg("clojure.main")
-            .arg("-m")
-            .arg("clojure.run.exec")
-            .args(&clj_opts.clojure_args)
-            .spawn(),
+        ExecOpts::Exec(_) | ExecOpts::Tool(_) => {
+            let cp = if cfg!(windows) {
+                format!("{};{}", cp, install_dir.join("exec.jar").display())
+            } else {
+                format!("{}:{}", cp, install_dir.join("exec.jar").display())
+            };
+            Command::new(&java)
+                .args(jvm_cache_opts.split_whitespace().collect::<Vec<_>>())
+                .args(clj_opts.jvm_opts.split_whitespace().collect::<Vec<_>>())
+                .arg(format!("-Dclojure.basis={}", basis_file.display()))
+                .arg("-classpath")
+                .arg(cp)
+                .arg("clojure.main")
+                .arg("-m")
+                .arg("clojure.run.exec")
+                .args(&clj_opts.clojure_args)
+                .spawn()
+        }
         ExecOpts::Main(_) | ExecOpts::Alias(_) | ExecOpts::Repl => {
             let main_cache_opts = if main_file.exists() {
                 fs::read_to_string(main_file)?
