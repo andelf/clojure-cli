@@ -1,4 +1,3 @@
-#![feature(io_read_to_string)]
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use md5::{Digest, Md5};
 use std::io::{Read, Write};
@@ -34,7 +33,7 @@ pub struct CljOpts {
     /// -Jopt Pass opt through in java_opts, ex: -J-Xmx512m
     jvm_opts: String,
     // -Sdeps EDN Deps data to use as the final deps file
-    //deps: String,
+    deps: String,
     //cp: String, // force cp
     /// -Spath         Compute classpath and echo to stdout only
     path: bool,
@@ -207,7 +206,7 @@ fn parse_args() -> Option<(ExecOpts, CljOpts)> {
             clj_opts.clojure_args.extend(it);
             break;
         } else if arg == "-Sdeps" {
-            unimplemented!()
+            clj_opts.deps = it.next().unwrap();
         } else if arg == "-Scp" {
             unimplemented!()
         } else if arg == "-Spath" {
@@ -311,8 +310,8 @@ fn main() -> anyhow::Result<()> {
 
     // Construct location of cached classpath file
     let cache_key = format!(
-        "|{:?}|{:?}|{:?}|",
-        &exec_opts, clj_opts.clojure_args, config_paths
+        "|{:?}|{:?}|{:?}|{:?}|",
+        &exec_opts, clj_opts.clojure_args, config_paths, clj_opts.deps
     );
     let cache_key_hash = md5_string(&cache_key);
     if clj_opts.verbose {
@@ -337,6 +336,10 @@ fn main() -> anyhow::Result<()> {
 
     // Make tools args if needed
     let mut tools_args: Vec<String> = vec![];
+    if !clj_opts.deps.is_empty() {
+        tools_args.push("--config-data".into());
+        tools_args.push(clj_opts.deps.clone());
+    }
     if let ExecOpts::Main(alias) = &exec_opts {
         if !alias.is_empty() {
             tools_args.push(format!("-M{}", alias))
