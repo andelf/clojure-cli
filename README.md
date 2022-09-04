@@ -10,6 +10,8 @@ Clojure CLI for Windows and all the other platforms.
 > clojure
 
 > clojure -Sverbose -Ttools
+
+> clojure -Sdeps '{:deps {cljfmt/cljfmt {:mvn/version "0.9.0"}}}' -m cljfmt.main check
 ```
 
 ## Rationale
